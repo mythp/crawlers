@@ -14,7 +14,6 @@ import datetime  # 转换时间用
 from fake_useragent import UserAgent
 from sqlalchemy import create_engine
 # 请求头
-from SqlUtil import SqlUtil
 
 Gheaders = {
     "User-Agent": "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.51 Mobile Safari/537.36",
@@ -123,7 +122,7 @@ def get_comments(v_weibo_ids, v_commonsfile, v_max_page):
                             source_list.append(c['source'])  # 评论者IP归属地
                             user_name_list.append(c['user']['screen_name'])  # 评论者姓名
                             user_id_list.append(num_out(c['user']['id']))  # 评论者id
-                            user_gender_list.append(tran_gender(c['user']['gender']))  # 评论者性别
+                            user_gender_list.append(c['user']['gender'])  # 评论者性别
                             follow_count_list.append(c['user']['follow_count'])  # 评论者关注数
                             followers_count_list.append(data['user']['followers_count'])  # 评论者粉丝数
                     page_list.append(data['floor_number'])
@@ -142,19 +141,19 @@ def get_comments(v_weibo_ids, v_commonsfile, v_max_page):
                     followers_count_list.append(data['user']['followers_count'])  # 评论者粉丝数
                 df = pd.DataFrame(
                     {
-                        'comentsid': id_list,
-                        'weiboid': num_out(weibo_id),
-                        'parentid': parent_list,
-                        'floors': page_list,
-                        'commenttime': time_list,
-                        'votenum': like_count_list,
-                        'commentip': source_list,
-                        'commentname': user_name_list,
-                        'commenterid': user_id_list,
-                        'commentsex': user_gender_list,
-                        'commentnum': follow_count_list,
-                        'commentfans': followers_count_list,
-                        'comment': text_list,
+                        'fid': num_out(weibo_id),
+                        '父级': parent_list,
+                        '评论页码': page_list,
+                        '评论id': id_list,
+                        '评论时间': time_list,
+                        '评论点赞数': like_count_list,
+                        '评论者IP归属地': source_list,
+                        '评论者姓名': user_name_list,
+                        '评论者id': user_id_list,
+                        '评论者性别': user_gender_list,
+                        '评论者关注数': follow_count_list,
+                        '评论者粉丝数': followers_count_list,
+                        '评论内容': text_list,
                     }
                 )
 
@@ -168,7 +167,7 @@ def get_comments(v_weibo_ids, v_commonsfile, v_max_page):
             # getNextConsultText(v_id, m_id, maxId)
 
 
-def get_weibo_list(kid,v_keyword, v_max_page,v_weibo_file,v_weibopingjia_file):
+def get_weibo_list(v_keyword, v_max_page,v_weibo_file,v_weibopingjia_file):
     """
     爬取微博内容列表
     :param v_keyword: 搜索关键字
@@ -234,22 +233,20 @@ def get_weibo_list(kid,v_keyword, v_max_page,v_weibo_file,v_weibopingjia_file):
         # 把列表数据保存成DataFrame数据
         df = pd.DataFrame(
             {
-                'weiboid': id_list,
-                'keyid': kid,
-                'weiboauthor': author_list,
-                'publishtime': time_list,
-                'weibocontent': text2_list,
-                'transnum': reposts_count_list,
-                'commentnum': comments_count_list,
-                'votenum': attitudes_count_list,
-
+                '微博id': id_list,
+                '微博作者': author_list,
+                '发布时间': time_list,
+                '微博内容': text2_list,
+                '转发数': reposts_count_list,
+                '评论数': comments_count_list,
+                '点赞数': attitudes_count_list,
             }
         )
         # 表头
         if os.path.exists(v_weibo_file):
             header = None
         else:
-            header = [ 'weiboid', 'keyid','weiboauthor', 'publishtime', 'weibocontent', 'transnum', 'commentnum', 'votenum']  # csv文件头
+            header = ['页码', '微博id', '微博ids', '微博作者', '发布时间', '微博内容', '转发数', '评论数', '点赞数']  # csv文件头
         # 保存到csv文件
         df.to_csv(v_weibo_file, mode='a+', index=False, header=header, encoding='utf_8_sig')
         get_comments(id_list, v_weibopingjia_file, 500)
@@ -260,7 +257,7 @@ def tasklist():
     # 清空任务
     schedule.clear()
     # 创建一个按2秒间隔执行任务
-    schedule.every(30).minutes.do(dowork)
+    schedule.every(1).minutes.do(dowork)
     # 执行10S
     while True:
         schedule.run_pending()
@@ -271,7 +268,7 @@ def dowork():
         'host': '47.95.202.15',
         'port': 3306,
         'user': 'crawerdb',
-        'passwd': 'crawerdb123',
+        'passwd': 'goodluck',
         'db': 'crawerdb',
         'charset': 'utf8',
     }
@@ -282,76 +279,45 @@ def dowork():
     # 爬取前几页
     max_search_page =8  # 爬前n页
     # 爬取关键字
-    SqlUtil().truncateTable('truncate table  contents')
-    SqlUtil().truncateTable('truncate table  comments')
-    data=SqlUtil().select_all_data('SELECT id, title, state FROM hotmessage where state=1')
-    for item in data:
-        print(item[1])
-        search_keyword = item[1]
-        kid=item[0]
-        # 保存文件名
-        tempfile1= '{}微博内容'.format(search_keyword)
-        tempfile2 = '微博评价'
-        v_weibo_filecsv =tempfile1+'.csv'
-        v_weibopingjia_filecsv =tempfile2+'.csv'
-        # 如果csv文件存在，先删除之
-        if os.path.exists(v_weibo_filecsv):
-            os.remove(v_weibo_filecsv)
-            print('微博清单存在，已删除: {}'.format(v_weibo_filecsv))
-        if os.path.exists(v_weibopingjia_filecsv):
-            os.remove(v_weibopingjia_filecsv)
-            print('微博清单存在，已删除: {}'.format(v_weibopingjia_filecsv))
-        # 调用爬取微博函数
-        get_weibo_list(kid=kid,v_keyword=search_keyword, v_max_page=max_search_page, v_weibo_file=v_weibo_filecsv, v_weibopingjia_file=v_weibopingjia_filecsv)
-        # 数据清洗-去重
-        df = pd.read_csv(v_weibo_filecsv)
-        # 删除重复数据
-        df.drop_duplicates(subset=['weiboid'], inplace=True, keep='first')
-        # df['weiboid'] = df['weiboid'].map(num_out)
-        #df['Id'] =1
-        # 再次保存csv文件
-        #df.to_excel(tempfile1+'.xlsx', index=False, encoding='utf_8_sig')
-        engine = create_engine("mysql+pymysql://{user}:{passwd}@{host}:{port}/{db}".format(**config), max_overflow=5)
-        df.to_sql('contents', engine, index=False, if_exists='append', )
-        query = 'EXEC createTableIndex '  # How to modify it here to accept multiple?
-        # with engine.connect() as con:
-        #     con.execute("""ALTER TABLE `{}`.`{}` \
-        #                    ADD COLUMN `Id` INT NOT NULL AUTO_INCREMENT FIRST, \
-        #                    ADD PRIMARY KEY (`Id`);"""
-        #                 .format('crawerdb', 'contents'))
-        # 数据清洗-去重
-        df = pd.read_csv(v_weibopingjia_filecsv)
-        # 删除重复数据
-        df.drop_duplicates(subset=['comentsid'], inplace=True, keep='first')
-        # df['weiboid'] = df['weiboid'].map(num_out)
-        # df['parentid'] = df['parentid'].map(num_out)
-        # df['comentsid'] = df['comentsid'].map(num_out)
-        # 再次保存csv文件
-        #df.to_excel(tempfile2+'.xlsx', index=False, encoding='utf_8_sig')
-        engine = create_engine("mysql+pymysql://{user}:{passwd}@{host}:{port}/{db}".format(**config), max_overflow=5)
-        df.to_sql('comments', engine, index=False, if_exists='append', )
-        # with engine.connect() as con:
-        #     con.execute("""ALTER TABLE `{}`.`{}` \
-        #             ADD COLUMN `Id` INT NOT NULL AUTO_INCREMENT FIRST, \
-        #             ADD PRIMARY KEY (`Id`);"""
-        #                 .format('crawerdb', 'comments'))
-        ts = now.strftime('%Y%m%d%H%M%S')
-        if os.path.exists(v_weibo_filecsv):
-            os.remove(v_weibo_filecsv)
-            print('微博清单存在，已删除: {}'.format(v_weibo_filecsv))
-        if os.path.exists(v_weibopingjia_filecsv):
-            os.remove(v_weibopingjia_filecsv)
-            print('微博清单存在，已删除: {}'.format(v_weibopingjia_filecsv))
-        print('数据清洗完成:{}'.format(ts))
+    search_keyword = '隐入尘烟'
+    # 保存文件名
+    tempfile1= '{}微博内容'.format(search_keyword)
+    tempfile2 = '微博评价'
+    v_weibo_filecsv =tempfile1+'.csv'
+    v_weibopingjia_filecsv =tempfile2+'.csv'
+    # 如果csv文件存在，先删除之
+    if os.path.exists(v_weibo_filecsv):
+        os.remove(v_weibo_filecsv)
+        print('微博清单存在，已删除: {}'.format(v_weibo_filecsv))
+    if os.path.exists(v_weibopingjia_filecsv):
+        os.remove(v_weibopingjia_filecsv)
+        print('微博清单存在，已删除: {}'.format(v_weibopingjia_filecsv))
+    # 调用爬取微博函数
+    get_weibo_list(v_keyword=search_keyword, v_max_page=max_search_page, v_weibo_file=v_weibo_filecsv, v_weibopingjia_file=v_weibopingjia_filecsv)
+    # 数据清洗-去重
+    df = pd.read_csv(v_weibo_filecsv)
+    # 删除重复数据
+    df.drop_duplicates(subset=['微博id'], inplace=True, keep='first')
+    df['微博id'] = df['微博id'].map(num_out)
+    df['微博ids'] = df['微博ids'].map(num_out)
+    # 再次保存csv文件
+    df.to_excel(tempfile1+'.xlsx', index=False, encoding='utf_8_sig')
+    engine = create_engine("mysql+pymysql://{user}:{passwd}@{host}:{port}/{db}".format(**config), max_overflow=5)
+    df.to_sql('contents', engine, index=False, if_exists='replace', )
+    # 数据清洗-去重
+    df = pd.read_csv(v_weibopingjia_filecsv)
+    # 删除重复数据
+    df.drop_duplicates(subset=['评论id'], inplace=True, keep='first')
+    df['id'] = df['id'].map(num_out)
+    df['父级'] = df['父级'].map(num_out)
+    df['评论id'] = df['评论id'].map(num_out)
+    # 再次保存csv文件
+    df.to_excel(tempfile2+'.xlsx', index=False, encoding='utf_8_sig')
+    engine = create_engine("mysql+pymysql://{user}:{passwd}@{host}:{port}/{db}".format(**config), max_overflow=5)
+    df.to_sql('comments', engine, index=False, if_exists='replace', )
+    ts = now.strftime('%Y%m%d%H%M%S')
+    print('数据清洗完成:{}'.format(ts))
 
 
 if __name__ == '__main__':
-    print('开始启动任务')
-    try:
-        tasklist()
-    except Exception as e:
-        print(e)
-    finally:
-        print('最后执行')
-        tasklist()
-
+    dowork()

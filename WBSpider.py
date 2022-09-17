@@ -1,4 +1,5 @@
 # coding='utf-8'
+import pymysql as pymysql
 import xlrd
 import re
 import requests
@@ -25,6 +26,37 @@ headers = {
 }
 
 
+
+def getConn():
+    # 配置数据库
+    config = {
+        'host': '47.95.202.15',
+        'port': 3306,
+        'user': 'crawerdb',
+        'password': 'goodluck',
+        'db': 'crawerdb',
+        'charset': 'utf8',
+    }
+    # 链接数据库
+    conn = pymysql.connect(**config)
+    cursor = conn.cursor()
+    return cursor
+def insertData(datalist,cursor,conn):
+    for n in range(len(datalist)):
+        sql = "insert into contents(id, author, publishtime, content, transnum, commentnum, likenum) values('%s','%s','%s','%s','%s','%d','%d','%d')" % (
+       ' name[n]', 'author[n]', 'info[n].strip()', type[n], '', random.randint(0, 1000),
+        random.randint(100, 300), 0)
+        cursor.execute(sql)
+        conn.commit()
+    cursor.close()
+    # 关闭连接
+    conn.close()
+
+def closeconn():
+    # 关闭游标
+    cursor.close()
+    # 关闭连接
+    conn.close()
 def require(url):
     """获取网页源码"""
     while True:
